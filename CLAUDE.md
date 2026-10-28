@@ -68,6 +68,15 @@ dotnet test FitnessTracker.slnx
 
 ## Deploy
 
-GitHub Actions baut das Image und aktualisiert die Container App `tracker-prod` in
-`RG_Tracker`. Umgebung `kaesseli-env` und Registry `kaesselicr` sind mit kaesseli geteilt.
-Details in `README.md`, Infrastruktur in `infra/setup.ps1`.
+`main` ist geschützt, direkte Pushes sind auch für den Besitzer gesperrt. Arbeit läuft über
+einen eigenen Branch plus Pull Request, die CI muss grün sein, und erst das Zusammenführen
+löst den Deploy aus. GitHub Actions baut dann das Image und aktualisiert die Container App
+`tracker-prod` in `RG_Tracker`. Umgebung `kaesseli-env` und Registry `kaesselicr` sind mit
+kaesseli geteilt. Details in `README.md`, Infrastruktur in `infra/setup.ps1`.
+
+## Installationsfrage
+
+`InstallPrompt` fängt `beforeinstallprompt` ab (die JS-Brücke steht in `index.html`) und zeigt
+beim Start einen Streifen im Layout. Auf iOS gibt es kein solches Ereignis, dort erscheint der
+Hinweis auf das Teilen-Menü. Eine Absage merkt sich der Browser unter
+`tracker.install.dismissed`.

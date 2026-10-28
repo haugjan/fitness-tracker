@@ -3,12 +3,34 @@
 @inject AuthStore Auth
 @inject NavigationManager Navigation
 @inject PwaUpdateService Pwa
+@inject InstallPrompt Install
 
 <div class="app-shell">
     <header class="band">
         <a class="band__title" href="">Messblatt</a>
         <span class="band__chip">KW @Format.WeekOfYear(DateOnly.FromDateTime(DateTime.Now))</span>
     </header>
+
+    @if (Install.Visible)
+    {
+        <div class="install">
+            <div class="install__text">
+                <span class="eyebrow">Auf den Startbildschirm</span>
+                <p class="prose">
+                    @(Install.CanPrompt
+                        ? "Messblatt als App installieren? Danach startet die Karte ohne Browserleiste."
+                        : "Im Teilen-Menü \"Zum Home-Bildschirm\" wählen, dann startet die Karte wie eine App.")
+                </p>
+            </div>
+            <div class="install__actions">
+                @if (Install.CanPrompt)
+                {
+                    <button type="button" class="btn btn--quiet" @onclick="InstallApp">Installieren</button>
+                }
+                <button type="button" class="btn btn--quiet" @onclick="DismissInstall">Nein danke</button>
+            </div>
+        </div>
+    }
 
     @if (Pwa.UpdateAvailable)
     {
@@ -49,12 +71,22 @@
         }
 
         Pwa.Changed += OnUpdateAnnounced;
+        Install.Changed += OnUpdateAnnounced;
         await Pwa.InitializeAsync();
+        await Install.InitializeAsync();
     }
 
     private void OnUpdateAnnounced() => InvokeAsync(StateHasChanged);
 
     private Task ApplyUpdate() => Pwa.ApplyUpdateAsync();
 
-    public void Dispose() => Pwa.Changed -= OnUpdateAnnounced;
+    private Task InstallApp() => Install.InstallAsync();
+
+    private Task DismissInstall() => Install.DismissAsync();
+
+    public void Dispose()
+    {
+        Pwa.Changed -= OnUpdateAnnounced;
+        Install.Changed -= OnUpdateAnnounced;
+    }
 }

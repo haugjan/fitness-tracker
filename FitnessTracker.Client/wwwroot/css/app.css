@@ -609,6 +609,38 @@ a.row:hover .row__value {
     color: var(--ink);
 }
 
+/* Die Installationsfrage sitzt wie ein angeheftetes Blatt über der Karte. */
+.install {
+    margin: 14px 22px 0 var(--margin-left);
+    border: 1px solid var(--ink);
+    border-top: 3px solid var(--stamp);
+    background: rgba(247, 242, 229, 0.6);
+    padding: 12px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.install__text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 200px;
+    flex: 1;
+}
+
+.install__actions {
+    display: flex;
+    gap: 8px;
+}
+
+.install__actions .btn {
+    width: auto;
+    white-space: nowrap;
+}
+
 /* ---------- Anmelden ---------- */
 
 .login {

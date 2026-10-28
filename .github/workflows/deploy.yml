@@ -1,13 +1,20 @@
 name: Deploy
 
+# Auf main wird nie direkt gepusht, der Branch ist geschützt. Hierher kommt Code
+# ausschliesslich über einen zusammengeführten Pull Request, und genau das löst den
+# Produktionsdeploy aus.
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -52,3 +59,13 @@ jobs:
           containerAppName: tracker-prod
           resourceGroup: RG_Tracker
           imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/tracker:${{ github.sha }}
+
+      - name: Smoke test
+        run: |
+          for attempt in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://tracker.haugrein.ch/healthz || true)
+            if [ "$code" = "200" ]; then echo "healthz ok"; exit 0; fi
+            sleep 10
+          done
+          echo "healthz hat nicht geantwortet"
+          exit 1

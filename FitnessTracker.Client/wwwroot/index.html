@@ -57,6 +57,52 @@
             }
         };
     </script>
+    <script>
+        // Der Browser meldet sich mit beforeinstallprompt, oft bevor die App geladen ist.
+        // Darum wird das Ereignis hier aufgefangen und beim Start abgeholt.
+        window.trackerInstall = (function () {
+            let deferredPrompt = null;
+            let dotNetRef = null;
+
+            function isStandalone() {
+                return window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
+            }
+
+            function isIos() {
+                return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+            }
+
+            window.addEventListener('beforeinstallprompt', event => {
+                event.preventDefault();
+                deferredPrompt = event;
+                if (dotNetRef) dotNetRef.invokeMethodAsync('OnInstallAvailable');
+            });
+
+            window.addEventListener('appinstalled', () => {
+                deferredPrompt = null;
+                if (dotNetRef) dotNetRef.invokeMethodAsync('OnInstalled');
+            });
+
+            return {
+                init: function (reference) {
+                    dotNetRef = reference;
+                    return {
+                        canPrompt: deferredPrompt !== null,
+                        isStandalone: isStandalone(),
+                        isIos: isIos()
+                    };
+                },
+                prompt: async function () {
+                    if (!deferredPrompt) return 'unavailable';
+                    deferredPrompt.prompt();
+                    const choice = await deferredPrompt.userChoice;
+                    deferredPrompt = null;
+                    return choice.outcome;
+                }
+            };
+        })();
+    </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
     <script>
         window.trackerPwa = (function () {

@@ -15,5 +15,6 @@ builder.Services.AddScoped<LocalStore>();
 builder.Services.AddScoped<AuthStore>();
 builder.Services.AddScoped<TrackerApi>();
 builder.Services.AddScoped<PwaUpdateService>();
+builder.Services.AddScoped<InstallPrompt>();
 
 await builder.Build().RunAsync();

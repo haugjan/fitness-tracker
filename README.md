@@ -86,10 +86,24 @@ Kosten: Die Container App skaliert auf null und teilt sich die monatliche Gratis
 Azure Container Apps mit kaesseli. Table Storage kostet bei einem Eintrag pro Tag Bruchteile
 eines Frankens. Das verwaltete Zertifikat für die Domain ist kostenlos.
 
+## Arbeitsweise
+
+`main` ist geschützt: kein direkter Push, auch nicht für den Besitzer. Jede Änderung läuft
+über einen eigenen Branch und einen Pull Request, den die CI (Build, Tests, Docker-Image)
+grün bestätigen muss. Beim Zusammenführen startet der Produktionsdeploy.
+
+```bash
+git switch -c messblatt-xy
+# arbeiten, committen
+git push -u origin messblatt-xy
+gh pr create --fill
+gh pr merge --squash        # löst den Deploy aus
+```
+
 ## Deployment
 
-`.github/workflows/deploy.yml` läuft auf `main` beziehungsweise `master`: Tests, Image bauen,
-in die Registry schieben, Container App aktualisieren. Nötige Repository-Secrets:
+`.github/workflows/deploy.yml` läuft auf `main`: Tests, Image bauen, in die Registry schieben,
+Container App aktualisieren, danach ein Smoke-Test gegen `/healthz`. Nötige Repository-Secrets:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
@@ -98,6 +112,9 @@ in die Registry schieben, Container App aktualisieren. Nötige Repository-Secret
 
 ## Auf dem Handy installieren
 
-`tracker.haugrein.ch` im Browser öffnen, PIN eingeben, dann im Menü "Zum Startbildschirm
-hinzufügen". Danach startet die App im eigenen Fenster. Der PIN wird pro Gerät einmal
-abgefragt und das Token bleibt 180 Tage gültig. Erfassen braucht Netz.
+`tracker.haugrein.ch` im Browser öffnen und den PIN eingeben. Beim Start fragt die App selbst,
+ob sie auf den Startbildschirm soll: Android und Desktop bekommen einen Knopf, der den
+Installationsdialog des Browsers öffnet, iOS einen Hinweis auf das Teilen-Menü, weil Safari
+keinen eigenen Dialog anbietet. Ein Nein wird pro Gerät gemerkt.
+
+Der PIN wird pro Gerät einmal abgefragt, das Token bleibt 180 Tage gültig. Erfassen braucht Netz.
