@@ -41,7 +41,12 @@
     }
 
     <main class="page">
-        @Body
+        @* Erst nach der Tokenprüfung rendern, sonst fragt eine Seite Daten ab,
+           während die Umleitung zur Anmeldung noch unterwegs ist. *@
+        @if (_authenticated)
+        {
+            @Body
+        }
     </main>
 
     <nav class="tabbar">
@@ -61,6 +66,8 @@
 </div>
 
 @code {
+    private bool _authenticated;
+
     protected override async Task OnInitializedAsync()
     {
         var token = await Auth.GetTokenAsync();
@@ -69,6 +76,8 @@
             Navigation.NavigateTo("anmelden", replace: true);
             return;
         }
+
+        _authenticated = true;
 
         Pwa.Changed += OnUpdateAnnounced;
         Install.Changed += OnUpdateAnnounced;

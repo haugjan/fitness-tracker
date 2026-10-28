@@ -10,16 +10,23 @@ COPY FitnessTracker.Contracts/FitnessTracker.Contracts.csproj FitnessTracker.Con
 COPY FitnessTracker.Client/FitnessTracker.Client.csproj FitnessTracker.Client/
 COPY FitnessTracker/FitnessTracker.csproj FitnessTracker/
 RUN dotnet restore FitnessTracker/FitnessTracker.csproj
+RUN dotnet restore FitnessTracker.Client/FitnessTracker.Client.csproj
 
 COPY FitnessTracker.Contracts/ FitnessTracker.Contracts/
 COPY FitnessTracker.Client/ FitnessTracker.Client/
 COPY FitnessTracker/ FitnessTracker/
 
-# Der Host referenziert den Client, darum landet das WebAssembly-Bundle
-# mit diesem einen Publish bereits unter wwwroot.
 RUN dotnet publish FitnessTracker/FitnessTracker.csproj -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish FitnessTracker.Client/FitnessTracker.Client.csproj -c Release -o /app/client
 
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+
+# Nur der eigenständige Publish des Clients ersetzt die Fingerprint-Platzhalter in
+# index.html. Über den Projektverweis des Hosts bleibt dort "blazor.webassembly#[...]"
+# stehen, und der Browser lädt dann nichts. Darum überschreibt das Client-Ergebnis
+# das wwwroot aus dem Host-Publish.
+COPY --from=build /app/client/wwwroot wwwroot/
+
 ENTRYPOINT ["dotnet", "FitnessTracker.dll"]
