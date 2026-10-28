@@ -1,0 +1,14 @@
+# Lokaler Tischersatz für Azure Table Storage.
+# Start: docker compose -f infra/azurite.yml up -d
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: tracker-azurite
+    command: azurite-table --tableHost 0.0.0.0 --tablePort 10002 --location /data
+    ports:
+      - "10002:10002"
+    volumes:
+      - tracker-azurite:/data
+
+volumes:
+  tracker-azurite:

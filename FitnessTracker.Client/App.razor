@@ -1,0 +1,17 @@
+@using FitnessTracker.Client.Layout
+
+<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <section class="sheet">
+                <h1 class="headline">Seite nicht gefunden</h1>
+                <p class="prose">Diese Adresse gibt es im Logbuch nicht.</p>
+                <a class="btn" href="/">Zurück zu heute</a>
+            </section>
+        </LayoutView>
+    </NotFound>
+</Router>

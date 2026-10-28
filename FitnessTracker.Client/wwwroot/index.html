@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Messblatt</title>
+    <base href="/" />
+    <link rel="preload" id="webassembly" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
+    <meta name="theme-color" content="#e7ddc5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Messblatt" />
+    <meta name="description" content="Karteiblatt für Gewicht, Umfänge und Fettfalten." />
+    <!-- Das Design liegt vollständig in css/app.css. Sobald eine Komponente eigenes
+         Scoped CSS bekommt (.razor.css), gehört hier wieder
+         <link href="FitnessTracker.Client.styles.css" rel="stylesheet" /> hinein. -->
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <div class="boot">
+            <span class="boot__mark">Messblatt</span>
+            <span class="boot__hint">Karte wird gezogen</span>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        Etwas ist schiefgelaufen.
+        <a href="." class="reload">Neu laden</a>
+        <span class="dismiss">&times;</span>
+    </div>
+
+    <script>
+        window.tracker = {
+            get: function (key) {
+                try { return localStorage.getItem(key); } catch { return null; }
+            },
+            set: function (key, value) {
+                try { localStorage.setItem(key, value); } catch { /* storage blocked */ }
+            },
+            remove: function (key) {
+                try { localStorage.removeItem(key); } catch { /* storage blocked */ }
+            },
+            focus: function (selector) {
+                const element = document.querySelector(selector);
+                if (element) element.focus();
+            }
+        };
+    </script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        window.trackerPwa = (function () {
+            let dotNetRef = null;
+            let waitingWorker = null;
+            let reloading = false;
+
+            function notifyDotNet() {
+                if (dotNetRef) dotNetRef.invokeMethodAsync('OnUpdateAvailable');
+            }
+
+            function trackInstalling(worker) {
+                worker.addEventListener('statechange', () => {
+                    if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                        waitingWorker = worker;
+                        notifyDotNet();
+                    }
+                });
+            }
+
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('service-worker.js').then(registration => {
+                    if (registration.waiting && navigator.serviceWorker.controller) {
+                        waitingWorker = registration.waiting;
+                        notifyDotNet();
+                    }
+                    if (registration.installing) trackInstalling(registration.installing);
+                    registration.addEventListener('updatefound', () => {
+                        if (registration.installing) trackInstalling(registration.installing);
+                    });
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'visible') {
+                            registration.update().catch(() => { });
+                        }
+                    });
+                }).catch(() => { });
+
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (reloading) return;
+                    reloading = true;
+                    location.reload();
+                });
+            }
+
+            return {
+                init: function (reference) {
+                    dotNetRef = reference;
+                    if (waitingWorker) notifyDotNet();
+                },
+                applyUpdate: function () {
+                    if (waitingWorker) waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+                }
+            };
+        })();
+    </script>
+</body>
+
+</html>

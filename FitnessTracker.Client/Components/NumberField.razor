@@ -1,0 +1,61 @@
+<div class="field">
+    <label class="field__label" for="@_id">@Label</label>
+    <div class="field__line">
+        <input id="@_id"
+               class="field__input"
+               type="text"
+               inputmode="decimal"
+               autocomplete="off"
+               enterkeyhint="next"
+               value="@_text"
+               placeholder="@Placeholder"
+               @oninput="OnInput" />
+        @if (!string.IsNullOrEmpty(Unit))
+        {
+            <span class="field__unit">@Unit</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Unit { get; set; }
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    [Parameter]
+    public double? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<double?> ValueChanged { get; set; }
+
+    [Parameter]
+    public int Digits { get; set; } = 1;
+
+    private readonly string _id = "field-" + Guid.NewGuid().ToString("N")[..8];
+    private string _text = string.Empty;
+    private double? _known;
+
+    protected override void OnParametersSet()
+    {
+        // Only overwrite the text when the value changed outside this field, so typing
+        // "82," is never rewritten mid keystroke.
+        if (Value != _known)
+        {
+            _text = Format.Number(Value, Digits) ?? string.Empty;
+            _known = Value;
+        }
+    }
+
+    private async Task OnInput(ChangeEventArgs args)
+    {
+        _text = args.Value?.ToString() ?? string.Empty;
+        var parsed = Format.ParseNumber(_text);
+        _known = parsed;
+        await ValueChanged.InvokeAsync(parsed);
+    }
+}

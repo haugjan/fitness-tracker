@@ -1,0 +1,243 @@
+@page "/"
+@inject TrackerApi Api
+
+<PageTitle>Heute · Messblatt</PageTitle>
+
+<section class="group">
+    <div class="group__head">
+        <h1 class="datum">@Format.LongDate(_today)</h1>
+        <span class="eyebrow">@_status</span>
+    </div>
+</section>
+
+@if (_loading)
+{
+    <p class="prose">Karte wird gezogen.</p>
+}
+else if (_error is not null)
+{
+    <p class="notice">@_error</p>
+}
+else if (_latest is null)
+{
+    <section class="empty">
+        <h2 class="headline">Noch nichts erfasst</h2>
+        <p class="prose">Der erste Eintrag braucht nur das Gewicht. Falten und Umfänge lassen sich jederzeit nachtragen.</p>
+        <a class="btn" href="eintrag">Erste Messung</a>
+    </section>
+}
+else
+{
+    <section class="group">
+        @if (_latest.WeightKg is { } weight)
+        {
+            <div class="weight">
+                <span class="weight__value">@Format.Number(weight, 1)</span>
+                <span class="weight__unit">kg</span>
+                @if (_weightDelta is { } delta)
+                {
+                    <span class="delta @(delta < 0 ? "delta--down" : delta > 0 ? "delta--up" : null)">
+                        @Format.Signed(delta, 1, "kg")
+                    </span>
+                }
+            </div>
+        }
+
+        @if (_derived?.BodyFatPercent is { } bodyFat)
+        {
+            <div class="stamp">
+                <span class="stamp__label">Fett nach JP 3</span>
+                <span class="stamp__value">@Format.Number(bodyFat, 1) %</span>
+            </div>
+        }
+        else if (_profile.BirthDate is null)
+        {
+            <p class="prose">Für den gerechneten Fettanteil fehlt das Geburtsdatum. <a href="profil">Im Profil nachtragen</a>.</p>
+        }
+    </section>
+
+    <section class="rows">
+        @if (_latest.ScaleBodyFatPercent is { } scaleFat)
+        {
+            <div class="row">
+                <span class="row__label">Fett laut Waage</span>
+                <span class="row__leader"></span>
+                <span class="row__value">@Format.Number(scaleFat, 1) %</span>
+            </div>
+        }
+        @if (_latest.WaistCm is { } waist)
+        {
+            <div class="row">
+                <span class="row__label">Taille</span>
+                <span class="row__leader"></span>
+                <span class="row__value">@Format.Number(waist, 1) cm</span>
+            </div>
+        }
+        @if (_latest.AbdomenCm is { } abdomen)
+        {
+            <div class="row">
+                <span class="row__label">Bauch</span>
+                <span class="row__leader"></span>
+                <span class="row__value">@Format.Number(abdomen, 1) cm</span>
+            </div>
+        }
+        @if (_latest.HipCm is { } hip)
+        {
+            <div class="row">
+                <span class="row__label">Hüfte</span>
+                <span class="row__leader"></span>
+                <span class="row__value">@Format.Number(hip, 1) cm</span>
+            </div>
+        }
+        @if (_derived?.WaistToHeightRatio is { } ratio)
+        {
+            <div class="row">
+                <span class="row__label">Taille zu Grösse</span>
+                <span class="row__leader"></span>
+                <span class="row__value row__value--muted">@Format.Number(ratio, 2)</span>
+            </div>
+        }
+        @if (_derived?.FatMassKg is { } fatMass)
+        {
+            <div class="row">
+                <span class="row__label">Fettmasse</span>
+                <span class="row__leader"></span>
+                <span class="row__value row__value--muted">@Format.Number(fatMass, 1) kg</span>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_latest.Note))
+        {
+            <div class="row">
+                <span class="row__label">Notiz</span>
+                <span class="row__leader"></span>
+                <span class="row__note">@_latest.Note</span>
+            </div>
+        }
+    </section>
+
+    @if (HasFolds)
+    {
+        <section class="group">
+            <span class="eyebrow">Fettfalten in Millimeter</span>
+            <div class="folds">
+                <div class="fold">
+                    <span class="fold__value">@FoldText(_latest.SkinfoldChestMm)</span>
+                    <span class="fold__label">@Sites.FirstShort(_profile.Sex)</span>
+                </div>
+                <div class="fold">
+                    <span class="fold__value">@FoldText(_latest.SkinfoldAbdomenMm)</span>
+                    <span class="fold__label">@Sites.SecondShort(_profile.Sex)</span>
+                </div>
+                <div class="fold">
+                    <span class="fold__value">@FoldText(_latest.SkinfoldThighMm)</span>
+                    <span class="fold__label">@Sites.ThirdShort(_profile.Sex)</span>
+                </div>
+            </div>
+        </section>
+    }
+
+    @if (_weightTrend.Count > 1)
+    {
+        <section class="group">
+            <div class="group__head">
+                <span class="eyebrow">Gewicht, zwölf Wochen</span>
+                <a class="eyebrow" href="verlauf">ganzer Verlauf</a>
+            </div>
+            <TrendChart Points="_weightTrend"
+                        Height="150"
+                        Target="_profile.TargetWeightKg"
+                        AriaLabel="@_trendLabel" />
+        </section>
+    }
+
+    <a class="btn" href="@_entryLink">@_entryLabel</a>
+}
+
+@code {
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Now);
+
+    private ProfileDto _profile = new();
+    private MeasurementDto? _latest;
+    private DerivedValues? _derived;
+    private double? _weightDelta;
+    private List<(DateOnly Date, double Value)> _weightTrend = [];
+    private bool _loading = true;
+    private string? _error;
+    private string _status = string.Empty;
+    private string _entryLink = "eintrag";
+    private string _entryLabel = "Heute erfassen";
+    private string _trendLabel = "Gewichtsverlauf";
+
+    private bool HasFolds =>
+        _latest is not null
+        && (
+            _latest.SkinfoldChestMm is not null
+            || _latest.SkinfoldAbdomenMm is not null
+            || _latest.SkinfoldThighMm is not null
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _profile = await Api.GetProfileAsync();
+            var measurements = await Api.ListMeasurementsAsync(_today.AddDays(-120), _today);
+            var ordered = measurements.OrderByDescending(measurement => measurement.Date).ToList();
+
+            _latest = ordered.FirstOrDefault();
+            var todaysEntry = ordered.FirstOrDefault(measurement => measurement.Date == _today);
+
+            _status = todaysEntry is not null
+                ? "heute erfasst"
+                : _latest is not null
+                    ? $"zuletzt {Format.DayMonth(_latest.Date)}"
+                    : "noch leer";
+
+            _entryLink = todaysEntry is null ? "eintrag" : $"eintrag/{_today:yyyy-MM-dd}";
+            _entryLabel = todaysEntry is null ? "Heute erfassen" : "Eintrag ändern";
+
+            if (_latest is not null)
+            {
+                _derived = BodyComposition.Calculate(_latest, _profile);
+
+                var previous = ordered.FirstOrDefault(measurement =>
+                    measurement.Date < _latest.Date && measurement.WeightKg is not null
+                );
+
+                if (_latest.WeightKg is { } current && previous?.WeightKg is { } earlier)
+                {
+                    _weightDelta = Math.Round(current - earlier, 1);
+                }
+            }
+
+            _weightTrend = measurements
+                .Where(measurement =>
+                    measurement.WeightKg is not null && measurement.Date >= _today.AddDays(-84)
+                )
+                .OrderBy(measurement => measurement.Date)
+                .Select(measurement => (measurement.Date, measurement.WeightKg!.Value))
+                .ToList();
+
+            if (_weightTrend.Count > 1)
+            {
+                _trendLabel =
+                    $"Gewicht von {Format.Number(_weightTrend[0].Value, 1)} auf {Format.Number(_weightTrend[^1].Value, 1)} Kilogramm";
+            }
+        }
+        catch (ApiException exception)
+        {
+            _error = exception.Message;
+        }
+        catch (Exception)
+        {
+            _error = "Die Kartei ist gerade nicht erreichbar.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string FoldText(double? value) =>
+        value is null ? "offen" : Format.Number(value.Value, 0);
+}

@@ -1,0 +1,253 @@
+@page "/eintrag"
+@page "/eintrag/{Date}"
+@inject TrackerApi Api
+@inject NavigationManager Navigation
+
+<PageTitle>Eintrag · Messblatt</PageTitle>
+
+<section class="group">
+    <div class="group__head">
+        <h1 class="headline">Eintrag</h1>
+        <span class="eyebrow">@(_existed ? "schon erfasst" : "neuer Tag")</span>
+    </div>
+</section>
+
+<div class="field field--date">
+    <label class="field__label" for="entry-date">Datum</label>
+    <div class="field__line">
+        <input id="entry-date"
+               class="field__input"
+               type="date"
+               max="@_maxDate"
+               value="@_date.ToString("yyyy-MM-dd")"
+               @onchange="OnDateChanged" />
+    </div>
+</div>
+
+@* Recomputed on every render, so the gerechnet value follows the keystrokes. *@
+@if (BodyComposition.Calculate(_model.ToDto(_date), _profile).BodyFatPercent is { } previewFat)
+{
+    <div class="banner">
+        <span>Aus den drei Falten gerechnet</span>
+        <strong>@Format.Number(previewFat, 1) %</strong>
+    </div>
+}
+
+<section class="group">
+    <span class="eyebrow">Waage</span>
+    <div class="field-grid">
+        <NumberField Label="Gewicht" Unit="kg" Placeholder="82.4" @bind-Value="_model.WeightKg" />
+        <NumberField Label="Fett laut Waage" Unit="%" Placeholder="18.2" @bind-Value="_model.ScaleBodyFatPercent" />
+    </div>
+</section>
+
+<section class="group">
+    <span class="eyebrow">Umfang in Zentimeter</span>
+    <div class="field-grid">
+        <NumberField Label="Taille" Unit="cm" Placeholder="84.0" @bind-Value="_model.WaistCm" />
+        <NumberField Label="Bauch" Unit="cm" Placeholder="88.5" @bind-Value="_model.AbdomenCm" />
+        <NumberField Label="Hüfte" Unit="cm" Placeholder="97.0" @bind-Value="_model.HipCm" />
+    </div>
+</section>
+
+<section class="group">
+    <span class="eyebrow">Zange in Millimeter</span>
+    <div class="field-grid">
+        <NumberField Label="@Sites.First(_profile.Sex)" Unit="mm" Digits="0" Placeholder="8" @bind-Value="_model.SkinfoldChestMm" />
+        <NumberField Label="@Sites.Second(_profile.Sex)" Unit="mm" Digits="0" Placeholder="17" @bind-Value="_model.SkinfoldAbdomenMm" />
+        <NumberField Label="@Sites.Third(_profile.Sex)" Unit="mm" Digits="0" Placeholder="12" @bind-Value="_model.SkinfoldThighMm" />
+    </div>
+</section>
+
+<div class="field field--text">
+    <label class="field__label" for="entry-note">Notiz</label>
+    <div class="field__line">
+        <input id="entry-note"
+               class="field__input"
+               type="text"
+               maxlength="280"
+               placeholder="Krank, Reise, Krafttag"
+               value="@_model.Note"
+               @oninput="OnNoteInput" />
+    </div>
+</div>
+
+@if (_error is not null)
+{
+    <p class="notice">@_error</p>
+}
+
+<div class="btn-row">
+    <button type="button" class="btn" disabled="@_busy" @onclick="Save">Eintrag ablegen</button>
+</div>
+
+@if (_existed)
+{
+    <button type="button" class="btn btn--ghost" disabled="@_busy" @onclick="Delete">
+        @(_confirmDelete ? "Wirklich löschen?" : "Eintrag löschen")
+    </button>
+}
+
+@code {
+    [Parameter]
+    public string? Date { get; set; }
+
+    private readonly string _maxDate = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+
+    private DateOnly _date = DateOnly.FromDateTime(DateTime.Now);
+    private ProfileDto _profile = new();
+    private EntryModel _model = new();
+    private bool _existed;
+    private bool _busy;
+    private bool _confirmDelete;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Date) && DateOnly.TryParse(Date, out var parsed))
+        {
+            _date = parsed;
+        }
+
+        _profile = await Api.GetProfileAsync();
+        await LoadDayAsync();
+    }
+
+    private async Task LoadDayAsync()
+    {
+        _error = null;
+        _confirmDelete = false;
+
+        try
+        {
+            var existing = await Api.GetMeasurementAsync(_date);
+            _existed = existing is not null;
+            _model = EntryModel.From(existing);
+        }
+        catch (ApiException exception)
+        {
+            _error = exception.Message;
+        }
+    }
+
+    private async Task OnDateChanged(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParse(args.Value?.ToString(), out var parsed))
+        {
+            _date = parsed;
+            await LoadDayAsync();
+        }
+    }
+
+    private void OnNoteInput(ChangeEventArgs args)
+    {
+        _model.Note = args.Value?.ToString();
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            await Api.SaveMeasurementAsync(_date, _model.ToInput());
+            Navigation.NavigateTo("");
+        }
+        catch (ApiException exception)
+        {
+            _error = exception.Message;
+        }
+        catch (Exception)
+        {
+            _error = "Gespeichert wurde nichts, die Kartei war nicht erreichbar.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Delete()
+    {
+        if (!_confirmDelete)
+        {
+            _confirmDelete = true;
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            await Api.DeleteMeasurementAsync(_date);
+            Navigation.NavigateTo("");
+        }
+        catch (Exception)
+        {
+            _error = "Der Eintrag konnte nicht gelöscht werden.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class EntryModel
+    {
+        public double? WeightKg { get; set; }
+        public double? ScaleBodyFatPercent { get; set; }
+        public double? WaistCm { get; set; }
+        public double? AbdomenCm { get; set; }
+        public double? HipCm { get; set; }
+        public double? SkinfoldChestMm { get; set; }
+        public double? SkinfoldAbdomenMm { get; set; }
+        public double? SkinfoldThighMm { get; set; }
+        public string? Note { get; set; }
+
+        public static EntryModel From(MeasurementDto? measurement) =>
+            measurement is null
+                ? new EntryModel()
+                : new EntryModel
+                {
+                    WeightKg = measurement.WeightKg,
+                    ScaleBodyFatPercent = measurement.ScaleBodyFatPercent,
+                    WaistCm = measurement.WaistCm,
+                    AbdomenCm = measurement.AbdomenCm,
+                    HipCm = measurement.HipCm,
+                    SkinfoldChestMm = measurement.SkinfoldChestMm,
+                    SkinfoldAbdomenMm = measurement.SkinfoldAbdomenMm,
+                    SkinfoldThighMm = measurement.SkinfoldThighMm,
+                    Note = measurement.Note,
+                };
+
+        public MeasurementInput ToInput() =>
+            new()
+            {
+                WeightKg = WeightKg,
+                ScaleBodyFatPercent = ScaleBodyFatPercent,
+                WaistCm = WaistCm,
+                AbdomenCm = AbdomenCm,
+                HipCm = HipCm,
+                SkinfoldChestMm = SkinfoldChestMm,
+                SkinfoldAbdomenMm = SkinfoldAbdomenMm,
+                SkinfoldThighMm = SkinfoldThighMm,
+                Note = Note,
+            };
+
+        public MeasurementDto ToDto(DateOnly date) =>
+            new()
+            {
+                Date = date,
+                WeightKg = WeightKg,
+                ScaleBodyFatPercent = ScaleBodyFatPercent,
+                WaistCm = WaistCm,
+                AbdomenCm = AbdomenCm,
+                HipCm = HipCm,
+                SkinfoldChestMm = SkinfoldChestMm,
+                SkinfoldAbdomenMm = SkinfoldAbdomenMm,
+                SkinfoldThighMm = SkinfoldThighMm,
+                Note = Note,
+            };
+    }
+}

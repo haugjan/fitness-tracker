@@ -1,0 +1,102 @@
+@if (_points.Count == 0)
+{
+    <p class="prose">Noch zu wenig Einträge für eine Kurve.</p>
+}
+else
+{
+    <svg class="chart"
+         viewBox="0 0 @_width @Height"
+         role="img"
+         aria-label="@AriaLabel"
+         style="height: @(Height)px">
+        <g stroke="#a79a80" stroke-width="1">
+            <line x1="@_left" y1="@_baseline" x2="@_width" y2="@_baseline"></line>
+            <line x1="@_left" y1="@_midline" x2="@_width" y2="@_midline" stroke-dasharray="3 5"></line>
+        </g>
+
+        @if (_targetY is { } targetY)
+        {
+            <line x1="@_left" y1="@targetY" x2="@_width" y2="@targetY" stroke="#9e2b25" stroke-width="1.2" stroke-dasharray="6 4"></line>
+        }
+
+        <polyline points="@_polyline" fill="none" stroke="#1b3a5b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <circle cx="@_lastX" cy="@_lastY" r="4" fill="#9e2b25"></circle>
+
+        <g font-family="Courier Prime, monospace" font-size="10" fill="#5c5346">
+            <text x="0" y="@(_top + 4)">@Format.Number(_max, Digits)</text>
+            <text x="0" y="@(_baseline - 1)">@Format.Number(_min, Digits)</text>
+            <text x="@_left" y="@(Height - 4)">@Format.ShortDate(_points[0].Date)</text>
+            <text x="@_width" y="@(Height - 4)" text-anchor="end">@Format.ShortDate(_points[^1].Date)</text>
+        </g>
+    </svg>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<(DateOnly Date, double Value)> Points { get; set; } = [];
+
+    [Parameter]
+    public int Height { get; set; } = 180;
+
+    [Parameter]
+    public int Digits { get; set; } = 1;
+
+    [Parameter]
+    public double? Target { get; set; }
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "Verlauf";
+
+    private List<(DateOnly Date, double Value)> _points = [];
+    private readonly int _width = 340;
+    private readonly int _left = 32;
+    private readonly int _top = 12;
+    private int _baseline;
+    private int _midline;
+    private double _min;
+    private double _max;
+    private string _polyline = string.Empty;
+    private double _lastX;
+    private double _lastY;
+    private double? _targetY;
+
+    protected override void OnParametersSet()
+    {
+        _points = Points.OrderBy(point => point.Date).ToList();
+        if (_points.Count == 0)
+        {
+            return;
+        }
+
+        _baseline = Height - 20;
+        _midline = _top + ((_baseline - _top) / 2);
+
+        var values = _points.Select(point => point.Value).ToList();
+        var low = values.Min();
+        var high = values.Max();
+        var padding = Math.Max((high - low) * 0.15, 0.4);
+        _min = Math.Round(low - padding, Digits);
+        _max = Math.Round(high + padding, Digits);
+
+        _polyline = string.Join(
+            " ",
+            _points.Select((point, index) => $"{X(index):0.#},{Y(point.Value):0.#}")
+        );
+
+        _lastX = X(_points.Count - 1);
+        _lastY = Y(_points[^1].Value);
+        _targetY = Target is { } target && target >= _min && target <= _max ? Y(target) : null;
+    }
+
+    private double X(int index) =>
+        _points.Count == 1
+            ? _left + ((_width - _left) / 2d)
+            : _left + (index * (_width - _left - 4) / (double)(_points.Count - 1));
+
+    private double Y(double value)
+    {
+        var span = _max - _min;
+        var ratio = span <= 0 ? 0.5 : (value - _min) / span;
+        return _baseline - (ratio * (_baseline - _top));
+    }
+}

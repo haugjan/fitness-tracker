@@ -1,0 +1,144 @@
+@page "/profil"
+@inject TrackerApi Api
+
+<PageTitle>Profil · Messblatt</PageTitle>
+
+<section class="group">
+    <div class="group__head">
+        <h1 class="headline">Profil</h1>
+        <span class="eyebrow">Grundlage der Rechnung</span>
+    </div>
+    <p class="prose">
+        Geburtsdatum und Geschlecht gehen in die Formel ein, die Körpergrösse in das Verhältnis
+        von Taille zu Grösse.
+    </p>
+</section>
+
+<div class="field field--date">
+    <label class="field__label" for="birth-date">Geburtsdatum</label>
+    <div class="field__line">
+        <input id="birth-date"
+               class="field__input"
+               type="date"
+               value="@_birthDate"
+               @onchange="OnBirthDateChanged" />
+    </div>
+</div>
+
+<div class="field-grid">
+    <NumberField Label="Körpergrösse" Unit="cm" Digits="0" Placeholder="181" @bind-Value="_heightCm" />
+    <NumberField Label="Zielgewicht" Unit="kg" Placeholder="80.0" @bind-Value="_targetWeight" />
+</div>
+
+<div class="field-grid">
+    <NumberField Label="Ziel Fettanteil" Unit="%" Placeholder="14.0" @bind-Value="_targetBodyFat" />
+</div>
+
+<section class="group">
+    <span class="eyebrow">Geschlecht</span>
+    <div class="segmented">
+        <button type="button"
+                class="segmented__option @(_sex == Sex.Male ? "active" : null)"
+                @onclick="() => _sex = Sex.Male">
+            Mann
+        </button>
+        <button type="button"
+                class="segmented__option @(_sex == Sex.Female ? "active" : null)"
+                @onclick="() => _sex = Sex.Female">
+            Frau
+        </button>
+    </div>
+</section>
+
+@if (_error is not null)
+{
+    <p class="notice">@_error</p>
+}
+else if (_saved)
+{
+    <p class="notice notice--good">Gespeichert.</p>
+}
+
+<button type="button" class="btn" disabled="@_busy" @onclick="Save">Profil speichern</button>
+
+<section class="group">
+    <span class="eyebrow">Rechenweg</span>
+    <p class="prose">
+        Der gerechnete Fettanteil kommt aus den drei Falten (@Sites.First(_sex), @Sites.Second(_sex),
+        @Sites.Third(_sex)) nach Jackson und Pollock, umgerechnet nach Siri. Die Waage misst
+        stattdessen den Widerstand im Körper, darum weichen die zwei Werte fast immer
+        voneinander ab. Interessant ist die Richtung, nicht die zweite Stelle.
+    </p>
+</section>
+
+<button type="button" class="btn btn--ghost" @onclick="SignOut">Abmelden</button>
+
+@code {
+    private string? _birthDate;
+    private double? _heightCm;
+    private double? _targetWeight;
+    private double? _targetBodyFat;
+    private Sex _sex = Sex.Male;
+    private bool _busy;
+    private bool _saved;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var profile = await Api.GetProfileAsync();
+            _birthDate = profile.BirthDate?.ToString("yyyy-MM-dd");
+            _heightCm = profile.HeightCm;
+            _targetWeight = profile.TargetWeightKg;
+            _targetBodyFat = profile.TargetBodyFatPercent;
+            _sex = profile.Sex;
+        }
+        catch (ApiException exception)
+        {
+            _error = exception.Message;
+        }
+    }
+
+    private void OnBirthDateChanged(ChangeEventArgs args)
+    {
+        _birthDate = args.Value?.ToString();
+        _saved = false;
+    }
+
+    private async Task Save()
+    {
+        _busy = true;
+        _error = null;
+        _saved = false;
+
+        try
+        {
+            var profile = new ProfileDto
+            {
+                BirthDate = DateOnly.TryParse(_birthDate, out var birthDate) ? birthDate : null,
+                HeightCm = _heightCm,
+                Sex = _sex,
+                TargetWeightKg = _targetWeight,
+                TargetBodyFatPercent = _targetBodyFat,
+            };
+
+            await Api.SaveProfileAsync(profile);
+            _saved = true;
+        }
+        catch (ApiException exception)
+        {
+            _error = exception.Message;
+        }
+        catch (Exception)
+        {
+            _error = "Das Profil wurde nicht gespeichert.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task SignOut() => Api.SignOutAsync();
+}

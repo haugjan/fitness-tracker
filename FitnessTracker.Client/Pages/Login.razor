@@ -1,0 +1,101 @@
+@page "/anmelden"
+@layout BareLayout
+@inject TrackerApi Api
+@inject AuthStore Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Messblatt</PageTitle>
+
+<div class="login">
+    <div class="login__head">
+        <div>
+            <span class="eyebrow">Körpermasse</span>
+            <h1 class="login__mark">Messblatt</h1>
+        </div>
+        <span class="login__stamp">Privat</span>
+    </div>
+
+    <p class="prose">Der PIN öffnet die Kartei und bleibt danach auf diesem Gerät gespeichert.</p>
+
+    <div class="field">
+        <label class="field__label" for="pin">PIN</label>
+        <div class="field__line">
+            <input id="pin"
+                   class="field__input login__pin"
+                   type="password"
+                   inputmode="numeric"
+                   autocomplete="current-password"
+                   value="@_pin"
+                   @oninput="OnPinInput"
+                   @onkeydown="OnKeyDown" />
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="notice">@_error</p>
+    }
+
+    <button type="button" class="btn" disabled="@_busy" @onclick="SignIn">Kartei öffnen</button>
+</div>
+
+@code {
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await Auth.GetTokenAsync();
+        if (!string.IsNullOrEmpty(token))
+        {
+            Navigation.NavigateTo("", replace: true);
+        }
+    }
+
+    private void OnPinInput(ChangeEventArgs args)
+    {
+        _pin = args.Value?.ToString() ?? string.Empty;
+        _error = null;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await SignIn();
+        }
+    }
+
+    private async Task SignIn()
+    {
+        if (string.IsNullOrWhiteSpace(_pin))
+        {
+            _error = "Bitte den PIN eingeben.";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            if (await Api.LoginAsync(_pin))
+            {
+                Navigation.NavigateTo("", replace: true);
+                return;
+            }
+
+            _error = "Dieser PIN passt nicht.";
+        }
+        catch (Exception)
+        {
+            _error = "Keine Verbindung zur Kartei.";
+        }
+        finally
+        {
+            _busy = false;
+            _pin = string.Empty;
+        }
+    }
+}

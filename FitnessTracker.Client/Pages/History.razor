@@ -1,0 +1,154 @@
+@page "/verlauf"
+@inject TrackerApi Api
+
+<PageTitle>Verlauf · Messblatt</PageTitle>
+
+<section class="group">
+    <div class="group__head">
+        <h1 class="headline">Verlauf</h1>
+        <span class="eyebrow">@_entries.Count Einträge</span>
+    </div>
+</section>
+
+<div class="chips">
+    @foreach (var metric in Metrics)
+    {
+        <button type="button"
+                class="chip @(metric.Key == _metric ? "active" : null)"
+                @onclick="() => _metric = metric.Key">
+            @metric.Label
+        </button>
+    }
+</div>
+
+<div class="chips">
+    @foreach (var range in Ranges)
+    {
+        <button type="button"
+                class="chip @(range.Days == _rangeDays ? "active" : null)"
+                @onclick="() => _rangeDays = range.Days">
+            @range.Label
+        </button>
+    }
+</div>
+
+@if (_loading)
+{
+    <p class="prose">Wird geladen.</p>
+}
+else if (_error is not null)
+{
+    <p class="notice">@_error</p>
+}
+else
+{
+    <TrendChart Points="CurrentPoints"
+                Height="210"
+                Digits="@CurrentDigits"
+                Target="CurrentTarget"
+                AriaLabel="@CurrentLabel" />
+
+    <section class="rows">
+        @foreach (var entry in VisibleEntries)
+        {
+            <a class="row" href="eintrag/@entry.Date.ToString("yyyy-MM-dd")">
+                <span class="row__label">@Format.ShortDate(entry.Date)</span>
+                <span class="row__leader"></span>
+                <span class="row__value">
+                    @(Format.Number(Value(entry), CurrentDigits) ?? "offen")
+                    <span class="field__unit">@CurrentUnit</span>
+                </span>
+            </a>
+        }
+    </section>
+}
+
+@code {
+    private record Metric(string Key, string Label);
+
+    private record Range(int Days, string Label);
+
+    private static readonly Metric[] Metrics =
+    [
+        new("weight", "Gewicht"),
+        new("calculated", "Fett gerechnet"),
+        new("scale", "Fett Waage"),
+        new("waist", "Taille"),
+    ];
+
+    private static readonly Range[] Ranges =
+    [
+        new(30, "1 Monat"),
+        new(90, "3 Monate"),
+        new(365, "1 Jahr"),
+    ];
+
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Now);
+
+    private List<MeasurementDto> _entries = [];
+    private ProfileDto _profile = new();
+    private string _metric = "weight";
+    private int _rangeDays = 90;
+    private bool _loading = true;
+    private string? _error;
+
+    private IEnumerable<MeasurementDto> VisibleEntries =>
+        _entries
+            .Where(entry => entry.Date >= _today.AddDays(-_rangeDays))
+            .OrderByDescending(entry => entry.Date);
+
+    private List<(DateOnly Date, double Value)> CurrentPoints =>
+        _entries
+            .Where(entry => entry.Date >= _today.AddDays(-_rangeDays))
+            .OrderBy(entry => entry.Date)
+            .Select(entry => (entry.Date, Value: Value(entry)))
+            .Where(point => point.Value is not null)
+            .Select(point => (point.Date, point.Value!.Value))
+            .ToList();
+
+    private const int CurrentDigits = 1;
+
+    private string CurrentUnit => _metric is "weight" ? "kg" : _metric is "waist" ? "cm" : "%";
+
+    private double? CurrentTarget =>
+        _metric switch
+        {
+            "weight" => _profile.TargetWeightKg,
+            "calculated" => _profile.TargetBodyFatPercent,
+            _ => null,
+        };
+
+    private string CurrentLabel =>
+        Metrics.First(metric => metric.Key == _metric).Label + " über die gewählte Zeit";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _profile = await Api.GetProfileAsync();
+            var measurements = await Api.ListMeasurementsAsync(_today.AddYears(-1), _today);
+            _entries = measurements.ToList();
+        }
+        catch (ApiException exception)
+        {
+            _error = exception.Message;
+        }
+        catch (Exception)
+        {
+            _error = "Die Kartei ist gerade nicht erreichbar.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private double? Value(MeasurementDto entry) =>
+        _metric switch
+        {
+            "weight" => entry.WeightKg,
+            "scale" => entry.ScaleBodyFatPercent,
+            "waist" => entry.WaistCm,
+            _ => BodyComposition.Calculate(entry, _profile).BodyFatPercent,
+        };
+}

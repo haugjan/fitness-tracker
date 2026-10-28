@@ -1,0 +1,60 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthStore Auth
+@inject NavigationManager Navigation
+@inject PwaUpdateService Pwa
+
+<div class="app-shell">
+    <header class="band">
+        <a class="band__title" href="">Messblatt</a>
+        <span class="band__chip">KW @Format.WeekOfYear(DateOnly.FromDateTime(DateTime.Now))</span>
+    </header>
+
+    @if (Pwa.UpdateAvailable)
+    {
+        <div class="banner">
+            <span>Eine neue Version liegt bereit.</span>
+            <button type="button" class="btn btn--quiet" style="width: auto" @onclick="ApplyUpdate">Jetzt laden</button>
+        </div>
+    }
+
+    <main class="page">
+        @Body
+    </main>
+
+    <nav class="tabbar">
+        <NavLink class="tab" href="" Match="NavLinkMatch.All">
+            <span class="tab__mark"></span>
+            Heute
+        </NavLink>
+        <NavLink class="tab" href="verlauf">
+            <span class="tab__mark"></span>
+            Verlauf
+        </NavLink>
+        <NavLink class="tab" href="profil">
+            <span class="tab__mark"></span>
+            Profil
+        </NavLink>
+    </nav>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await Auth.GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
+        {
+            Navigation.NavigateTo("anmelden", replace: true);
+            return;
+        }
+
+        Pwa.Changed += OnUpdateAnnounced;
+        await Pwa.InitializeAsync();
+    }
+
+    private void OnUpdateAnnounced() => InvokeAsync(StateHasChanged);
+
+    private Task ApplyUpdate() => Pwa.ApplyUpdateAsync();
+
+    public void Dispose() => Pwa.Changed -= OnUpdateAnnounced;
+}
