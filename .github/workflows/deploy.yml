@@ -6,6 +6,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "infra/**"
   workflow_dispatch:
 
 permissions:

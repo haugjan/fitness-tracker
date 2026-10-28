@@ -78,9 +78,17 @@ az login --use-device-code
 ./infra/setup.ps1
 ```
 
-Das Skript fragt, welche Schritte laufen sollen, legt Storage, Container App, Managed Identity,
-Domain und den Service Principal für GitHub Actions an und druckt am Ende die vier Secrets
-für das Repository.
+Das Skript fragt, welche Schritte laufen sollen, und legt Storage, Container App, Managed
+Identity, Domain sowie den Service Principal samt Federated Credentials und Repository-Secrets
+an. Die App zieht ihr Bild mit der eigenen Identität, es liegt kein Registry-Passwort herum.
+
+Findet `az` keine Subscription, liegt sie in einem anderen Verzeichnis als dem Standard des
+Kontos. Dann die Verzeichnisse auflisten und gezielt anmelden:
+
+```powershell
+az rest --method get --url "https://management.azure.com/tenants?api-version=2022-12-01"
+az login --tenant <tenant-id>
+```
 
 Kosten: Die Container App skaliert auf null und teilt sich die monatliche Gratismenge von
 Azure Container Apps mit kaesseli. Table Storage kostet bei einem Eintrag pro Tag Bruchteile
